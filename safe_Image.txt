@@ -1,0 +1,243 @@
+import aiohttp
+import asyncio
+import os
+from dotenv import load_dotenv
+import time
+import json
+import random
+from datetime import datetime, timedelta
+import re
+import base64
+
+# Load Environment
+load_dotenv("/Users/stephentaykor/Desktop/flipper_Simulation/Flipper_AI/.env")
+EBAY_CLIENT_ID = os.getenv("EBAY_CLIENT_ID")
+EBAY_CLIENT_SECRET = os.getenv("EBAY_CLIENT_SECRET")
+EBAY_REFRESH_TOKEN = os.getenv("EBAY_REFRESH_TOKEN")
+
+OUTPUT_FOLDER = "/Users/stephentaykor/Desktop/flipper_Simulation/my_items_safe"
+KEYWORDS_PATH = "/Users/stephentaykor/Desktop/flipper_Simulation/Flipper_AI/usable_category_paths_fixed_final.txt"
+PROGRESS_FILE = os.path.join(OUTPUT_FOLDER, "progress.json")
+
+TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
+REQUEST_DELAY = 0.5  # Throttle to ~2 calls/sec
+MAX_RETRIES = 5
+BACKOFF_MAX = 900  # 15 min
+IMG_TIMEOUT = 10
+
+# Utilities
+def safe_name(s):
+    return re.sub(r"[^a-zA-Z0-9]+", "_", s).strip("_")
+
+def next_reset_utc():
+    now = datetime.utcnow()
+    return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+async def sleep_until_reset():
+    wait = (next_reset_utc() - datetime.utcnow()).total_seconds()
+    hours, minutes = divmod(wait, 3600)
+    print(f"⏸ Quota reached. Sleeping for {int(hours)}h {int(minutes//60)}m")
+    await asyncio.sleep(wait + 60)
+
+def load_keywords(path):
+    with open(path, "r") as f:
+        return [line.strip() for line in f if line.strip()]
+
+def load_progress(path):
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return {"done": {}}
+
+def save_progress(data, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+# Auth
+async def refresh_ebay_token():
+    print("🔑 Refreshing eBay token...")
+    connector = aiohttp.TCPConnector(verify_ssl=False)  # Add this
+    async with aiohttp.ClientSession(connector=connector) as session:  # Add connector here
+        auth = base64.b64encode(f"{EBAY_CLIENT_ID}:{EBAY_CLIENT_SECRET}".encode()).decode()
+        response = await session.post(
+            TOKEN_URL,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": f"Basic {auth}",
+            },
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": EBAY_REFRESH_TOKEN,
+                "scope": "https://api.ebay.com/oauth/api_scope",
+            },
+        )
+        if response.status == 200:
+            token = (await response.json())["access_token"]
+            print("✅ Token refreshed.")
+            return token
+        print(f"❌ Token refresh failed: {response.status} {await response.text()}")
+        return None
+
+# eBay Search
+async def search_ebay_api(session, keyword, token, limit=100):
+    search_term = keyword.split(">")[-1].strip() if ">" in keyword else keyword
+    category_map = {
+        "Electronics": "220",
+        "Collectibles": "1",
+        "Cell Phones & Accessories": "9355",
+        "Video Games & Consoles": "1249",
+        "Toys & Hobbies": "220",
+    }
+    category_id = next((v for k, v in category_map.items() if k in keyword), None)
+    url = f"https://api.ebay.com/buy/browse/v1/item_summary/search?q={search_term}&limit={limit}"
+    if category_id:
+        url += f"&categoryIds={category_id}"
+    headers = {"Authorization": f"Bearer {token}", "User-Agent": f"FlipperBot/{random.random()}"}
+    wait_time = 60
+    for attempt in range(MAX_RETRIES):
+        async with session.get(url, headers=headers) as response:
+            print(f"🔎 Searching '{search_term}' → {response.status}")
+            if response.status == 200:
+                data = await response.json()
+                items = []
+                for i in data.get("itemSummaries", []):
+                    category_path = keyword
+                    if keyword.startswith("Electronics > Garden >"):
+                        category_path = "Garden >" + keyword[len("Electronics > Garden >"):]
+                    images = [i["image"]["imageUrl"]] if "image" in i else []
+                    if "additionalImages" in i:
+                        images.extend(img["imageUrl"] for img in i["additionalImages"])
+                    items.append({
+                        "item_id": i["itemId"],
+                        "platform": "eBay",
+                        "title": i["title"],
+                        "price": float(i["price"]["value"]),
+                        "images": images,
+                        "categoryPath": category_path,
+                        "url": i["itemWebUrl"],
+                        "scraped_at": datetime.now().isoformat(),
+                    })
+                print(f"📊 Found {len(items)} items for '{search_term}'")
+                return items
+            if response.status == 401:
+                print("🔁 Token expired, refreshing...")
+                return "refresh"
+            if response.status == 429:
+                print(f"⚠️ 429: Waiting {wait_time}s...")
+                await asyncio.sleep(wait_time)
+                wait_time = min(wait_time * 2, BACKOFF_MAX)
+                continue
+            if response.status == 403 or "limit" in (await response.text()).lower():
+                print("🚫 Quota reached.")
+                return "quota"
+            print(f"⚠️ Error {response.status}: {await response.text()}")
+            break
+    print(f"❌ Failed '{search_term}' after {MAX_RETRIES} retries.")
+    return []
+
+async def download_image(session, img_url, img_path):
+    try:
+        async with session.get(img_url, timeout=IMG_TIMEOUT) as r:
+            if r.status == 200:
+                with open(img_path, "wb") as f:
+                    f.write(await r.read())
+                print(f"🖼️ Saved {img_path}")
+                return img_path
+    except Exception as e:
+        print(f"⚠️ Image save failed: {e}")
+    return None
+
+# Save Images
+async def save_items_and_images(items, output_folder):
+    os.makedirs(output_folder, exist_ok=True)
+    img_folder = os.path.join(output_folder, "ebay")
+    os.makedirs(img_folder, exist_ok=True)
+    json_path = os.path.join(output_folder, "items.json")
+
+    existing = []
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r") as f:
+                existing = json.load(f)
+        except:
+            pass
+
+    titles = set((i["title"], i.get("platform", "")) for i in existing)
+    all_items = existing[:]
+
+    connector = aiohttp.TCPConnector(verify_ssl=False)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        for item in items:
+            if (item["title"], item.get("platform", "")) in titles:
+                continue
+            cat_dir = os.path.join(img_folder, safe_name(item["categoryPath"]))
+            os.makedirs(cat_dir, exist_ok=True)
+            local_imgs = []
+            # Create tasks for parallel downloads
+            tasks = []
+            for idx, img_url in enumerate(item.get("images", [])):
+                ext = img_url.split(".")[-1].split("?")[0][:4]
+                img_path = os.path.join(cat_dir, f"{safe_name(item['title'])}_{idx}.{ext}")
+                tasks.append(download_image(session, img_url, img_path))
+            # Run downloads in parallel
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, str):  # Success
+                    local_imgs.append(result)
+            item["local_images"] = local_imgs
+            all_items.append(item)
+            titles.add((item["title"], item.get("platform", "")))
+            print(f"📄 New item: {item['url']}")
+
+        with open(json_path, "w") as f:
+            json.dump(all_items, f, indent=2)
+
+    # Create items_for_scoring.json (same as items.json for scoring)
+    scoring_path = os.path.join(output_folder, "items_for_scoring.json")
+    with open(scoring_path, "w") as f:
+        json.dump(all_items, f, indent=2)
+    print(f"📊 Saved items_for_scoring.json")
+
+    # Create urls.json (list of URLs)
+    urls = [item["url"] for item in all_items]
+    urls_path = os.path.join(output_folder, "urls.json")
+    with open(urls_path, "w") as f:
+        json.dump(urls, f, indent=2)
+    print(f"🔗 Saved urls.json")
+
+    print(f"💾 Saved {len(items)} new items (Total: {len(all_items)})")
+
+# Main
+async def main():
+    print("🚀 Starting eBay Scraper for Flipper Simulator")
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    progress = load_progress(PROGRESS_FILE)
+    keywords = load_keywords(KEYWORDS_PATH)
+    random.shuffle(keywords)
+    token = await refresh_ebay_token()
+    all_items = []
+
+    connector = aiohttp.TCPConnector(verify_ssl=False)  # Add this
+    async with aiohttp.ClientSession(connector=connector) as session:  # Add connector here
+        for kw in keywords:
+            if progress["done"].get(kw):
+                continue
+            result = await search_ebay_api(session, kw, token, limit=100)
+            if result == "refresh":
+                token = await refresh_ebay_token()
+                result = await search_ebay_api(session, kw, token, limit=100)
+            if result == "quota":
+                await sleep_until_reset()
+                token = await refresh_ebay_token()
+                result = await search_ebay_api(session, kw, token, limit=100)
+            if isinstance(result, list) and result:
+                await save_items_and_images(result, OUTPUT_FOLDER)
+                progress["done"][kw] = True
+                save_progress(progress, PROGRESS_FILE)
+                all_items.extend(result)
+            await asyncio.sleep(REQUEST_DELAY)
+    print(f"🎉 Finished: {len(all_items)} items scraped.")
+
+if __name__ == "__main__":
+    asyncio.run(main())

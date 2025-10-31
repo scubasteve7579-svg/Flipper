@@ -1,0 +1,20 @@
+{
+  "title": "test3",
+  "price": "500.0",
+  "currency": "USD",
+  "category": "Apple Laptops",
+  "itemId": "110588420081",
+  "viewItemURL": "https://cgi.sandbox.ebay.com/test3-/110588420081",
+  "galleryURL": "",
+  "location": "San Jose,CA,USA",
+  "condition": "New",
+  "listingType": "FixedPrice",
+  "sellerUserName": null,
+  "shippingType": "Free",
+  "shippingServiceCost": "0.0",
+  "shippingCurrency": "USD",
+  "country": "US",
+  "startTime": "2025-09-05T18:18:40.000Z",
+  "endTime": "2025-10-05T18:18:40.000Z",
+  "image_filename": "test3_110588420081.jpg"
+}

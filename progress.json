@@ -1,0 +1,16 @@
+{
+  "amazon": {
+    "electronics tv": 50,
+    "home furniture": 2,
+    "home bedding": 2,
+    "fashion accessories": 2,
+    "home kitchen": 2,
+    "electronics computers": 1,
+    "toys puzzles": 2,
+    "electronics cameras": 1,
+    "fashion men": 2,
+    "fashion women": 2,
+    "toys dolls": 1
+  },
+  "ebay": {}
+}

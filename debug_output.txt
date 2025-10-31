@@ -1,0 +1,10 @@
+TEST: ebay_scraping_recent.py started
+🚀 Scraping new eBay items for Flipper (NZDT: 2025-10-27 14:07:02)
+🔑 Refreshed token
+Refreshed token
+📊 Resuming from category index 42 (offset 0), total items: 540019, daily calls: 5000
+Resuming from category index 42 (offset 0), total items: 540019, daily calls: 5000
+🎉 Run completed: 0 new items, Total Downloaded: 540019, 5000 calls used in 0.00 hours
+Run completed: 0 new items, Total Downloaded: 540019, 5000 calls used in 0.00 hours
+⏸ Sleeping 119.98 minutes until next 2-hour window
+Sleeping 119.98 minutes until next 2-hour window
