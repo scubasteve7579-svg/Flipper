@@ -197,13 +197,23 @@ class MultiMarketplaceScanner:
         
         return results
     
-    def find_best_deals(self, query: str, max_results_per_marketplace: int = 10) -> List[Product]:
-        """Find the best deals across all marketplaces"""
-        all_results = self.scan_all(query, max_results_per_marketplace)
+    def find_best_deals(self, query: str = None, max_results_per_marketplace: int = 10, 
+                        results: Dict[str, List[Product]] = None) -> List[Product]:
+        """Find the best deals across all marketplaces
+        
+        Args:
+            query: Search query (required if results not provided)
+            max_results_per_marketplace: Max results per marketplace
+            results: Pre-scanned results to use instead of scanning again
+        """
+        if results is None:
+            if query is None:
+                raise ValueError("Either query or results must be provided")
+            results = self.scan_all(query, max_results_per_marketplace)
         
         # Flatten all products
         all_products = []
-        for products in all_results.values():
+        for products in results.values():
             all_products.extend(products)
         
         # Sort by price
@@ -211,12 +221,20 @@ class MultiMarketplaceScanner:
         
         return all_products
     
-    def compare_prices(self, query: str) -> Dict[str, float]:
-        """Compare average prices across marketplaces"""
-        all_results = self.scan_all(query)
+    def compare_prices(self, query: str = None, results: Dict[str, List[Product]] = None) -> Dict[str, float]:
+        """Compare average prices across marketplaces
+        
+        Args:
+            query: Search query (required if results not provided)
+            results: Pre-scanned results to use instead of scanning again
+        """
+        if results is None:
+            if query is None:
+                raise ValueError("Either query or results must be provided")
+            results = self.scan_all(query)
         
         price_comparison = {}
-        for marketplace, products in all_results.items():
+        for marketplace, products in results.items():
             if products:
                 avg_price = sum(p.price for p in products) / len(products)
                 price_comparison[marketplace] = round(avg_price, 2)
@@ -260,7 +278,7 @@ def main():
     print("BEST DEALS (sorted by price)")
     print(f"{'='*60}\n")
     
-    best_deals = scanner.find_best_deals(search_query, max_results_per_marketplace=5)
+    best_deals = scanner.find_best_deals(results=results)
     for i, product in enumerate(best_deals[:10], 1):
         print(f"{i}. ${product.price:.2f} - {product.title}")
         print(f"   [{product.marketplace}] {product.url}\n")
@@ -270,7 +288,7 @@ def main():
     print("PRICE COMPARISON (average prices)")
     print(f"{'='*60}\n")
     
-    price_comparison = scanner.compare_prices(search_query)
+    price_comparison = scanner.compare_prices(results=results)
     for marketplace, avg_price in sorted(price_comparison.items(), key=lambda x: x[1]):
         print(f"{marketplace:15} ${avg_price:.2f}")
     
