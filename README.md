@@ -24,6 +24,17 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Quick Start
+Run the scanner with default settings:
+```bash
+python scanner.py
+```
+
+Or use the example script to see different features:
+```bash
+python example.py
+```
+
 ### Basic Usage
 Run the scanner with default settings:
 ```bash

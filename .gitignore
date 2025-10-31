@@ -1,5 +1,6 @@
 # Output files
 scan_results.json
+example_results.json
 *.json.bak
 
 # Python
