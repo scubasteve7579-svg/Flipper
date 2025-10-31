@@ -1,7 +1,5 @@
-# Flipper Configuration
-# Configuration file for marketplace scanner settings
-
 {
+  "_comment": "Flipper Configuration - marketplace scanner settings",
   "search": {
     "max_results_per_marketplace": 10,
     "default_query": "wireless headphones"
