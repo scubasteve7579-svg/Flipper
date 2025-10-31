@@ -1,0 +1,19 @@
+{
+  "ebay": {
+    "enabled": true,
+    "api_key": "your_ebay_api_key_here",
+    "max_results": 10,
+    "notes": "Get your eBay API key from: https://developer.ebay.com/"
+  },
+  "amazon": {
+    "enabled": true,
+    "api_key": "your_amazon_api_key_here",
+    "max_results": 10,
+    "notes": "Get your Amazon Product Advertising API key from: https://affiliate-program.amazon.com/assoc_credentials/home"
+  },
+  "facebook": {
+    "enabled": true,
+    "max_results": 10,
+    "notes": "Facebook Marketplace may require web scraping as they don't have a public API"
+  }
+}

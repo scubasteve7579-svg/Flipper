@@ -1,0 +1,16 @@
+{
+  "ebay": {
+    "enabled": true,
+    "api_key": "",
+    "max_results": 10
+  },
+  "amazon": {
+    "enabled": true,
+    "api_key": "",
+    "max_results": 10
+  },
+  "facebook": {
+    "enabled": true,
+    "max_results": 10
+  }
+}
