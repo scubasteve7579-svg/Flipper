@@ -1,0 +1,27 @@
+# Flipper Configuration
+# Configuration file for marketplace scanner settings
+
+{
+  "search": {
+    "max_results_per_marketplace": 10,
+    "default_query": "wireless headphones"
+  },
+  "marketplaces": {
+    "ebay": {
+      "enabled": true,
+      "api_key": ""
+    },
+    "amazon": {
+      "enabled": true,
+      "api_key": ""
+    },
+    "walmart": {
+      "enabled": true,
+      "api_key": ""
+    }
+  },
+  "output": {
+    "export_format": "json",
+    "export_filename": "scan_results.json"
+  }
+}

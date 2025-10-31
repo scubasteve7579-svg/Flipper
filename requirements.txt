@@ -1,0 +1,9 @@
+# Flipper - Multi-Marketplace Scanner
+# Python dependencies
+
+# For future API integrations:
+# requests>=2.31.0
+# beautifulsoup4>=4.12.0
+# selenium>=4.15.0
+
+# No external dependencies required for the basic implementation
