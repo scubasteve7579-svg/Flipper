@@ -11,6 +11,9 @@ from dts_model import (
     train_dts_model,
 )
 
+# Default assumed profit margin when no trend data is available
+DEFAULT_PROFIT_MARGIN = 0.3
+
 # Paths
 SOLD_ITEMS_FILE = "/Users/stephentaykor/Desktop/flipper_Simulation/my_items_recent/sold_items.json"
 ACTIVE_ITEMS_FILE = "/Users/stephentaykor/Desktop/flipper_Simulation/my_items_recent/items.json"
@@ -87,9 +90,10 @@ if len(trainable) >= MIN_TRAINING_SAMPLES:
         if "train" in eval_results and "directional_accuracy" in eval_results["train"]:
             da = eval_results["train"]["directional_accuracy"][-1]
             bda_list = eval_results["train"].get("boundary_dir_acc", [])
-            bda = bda_list[-1] if bda_list else "N/A"
+            bda = bda_list[-1] if bda_list else None
+            bda_str = f"{bda:.4f}" if bda is not None else "N/A"
             print(f"📊 Model trained — directional accuracy: {da:.4f}, "
-                  f"boundary accuracy: {bda}")
+                  f"boundary accuracy: {bda_str}")
         # Show fingerprint fast_sell_through summary
         if fingerprint_stats:
             print(f"🔑 Tracked {len(fingerprint_stats)} fingerprints for "
@@ -126,7 +130,7 @@ if model is not None:
         if "electronics" in category or "laptops" in category:
             confidence = min(0.9, confidence + 0.1)
 
-        estimated_profit = float(item.get("price", 0)) * 0.3  # default margin
+        estimated_profit = float(item.get("price", 0)) * DEFAULT_PROFIT_MARGIN
         score = estimated_profit * confidence
         item["confidence"] = confidence
         item["score"] = score
@@ -169,7 +173,7 @@ else:
             "total_profit": 0, "count": 0, "avg_profit": 0,
             "sales_volume": 0, "avg_duration": 0,
         })
-        estimated_profit = trend["avg_profit"] or (float(item.get("price", 0)) * 0.3)
+        estimated_profit = trend["avg_profit"] or (float(item.get("price", 0)) * DEFAULT_PROFIT_MARGIN)
 
         confidence = 0.5
         if trend["sales_volume"] > 5:

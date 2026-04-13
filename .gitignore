@@ -2,3 +2,4 @@
 .emv
 *.bak
 *.save
+__pycache__/

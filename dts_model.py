@@ -20,7 +20,7 @@ import numpy as np
 # Constants
 # ---------------------------------------------------------------------------
 DTS_THRESHOLD = 7                       # days: fast (<7) vs slow (>=7)
-LOG_THRESHOLD = math.log1p(DTS_THRESHOLD)  # ≈ 2.079 in log1p space
+LOG_THRESHOLD = math.log1p(DTS_THRESHOLD)  # ≈ 2.0794 in log1p space
 BOUNDARY_LOW = 4                        # lower edge of decision boundary zone
 BOUNDARY_HIGH = 14                      # upper edge of decision boundary zone
 WRONG_SIDE_PENALTY = 2.0                # extra penalty multiplier for cross-boundary errors
@@ -256,7 +256,7 @@ def train_dts_model(sold_items, feature_builder, lgb_params=None):
         "min_child_samples": 10,
         "subsample": 0.8,
         "colsample_bytree": 0.8,
-        "metric": "None",  # disable default metric; using custom feval
+        "metric": [],  # disable default metric; using custom feval
     }
     if lgb_params:
         params.update(lgb_params)
@@ -308,6 +308,7 @@ def predict_dts(model, items, feature_builder, fingerprint_stats=None):
             item["fast_slow"] = "unknown"
             continue
 
+        # Missing features default to 0.0; LightGBM handles this gracefully.
         x = np.array([[feats.get(f, 0.0) for f in feature_names]])
         log_pred = model.predict(x)[0]
         dts_pred = math.expm1(log_pred)
